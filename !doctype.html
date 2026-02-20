@@ -1,0 +1,816 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Namaz Vakitleri + Sayaç + Ezan + Tespihat</title>
+  <style>
+    :root { color-scheme: dark; }
+    body{
+      margin:0; min-height:100vh; display:grid; place-items:center;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background: radial-gradient(1200px 800px at 50% 40%, #1b2a4a, #06080f);
+      color:#fff;
+    }
+    .card{
+      width:min(980px, 92vw);
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      backdrop-filter: blur(10px);
+      border-radius: 18px;
+      padding: 18px 18px 16px;
+      box-shadow: 0 18px 60px rgba(0,0,0,.35);
+      position: relative;
+    }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+    .title{ font-size:18px; opacity:.92; }
+    .meta{ font-size:13px; opacity:.75; line-height:1.35; }
+    .controls{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    select, button{
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(0,0,0,.18);
+      color:#fff;
+      padding: 10px 12px;
+      outline:none;
+    }
+    button{ cursor:pointer; background: rgba(255,255,255,.08); }
+    button:hover{ background: rgba(255,255,255,.12); }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    @media (min-width: 860px){
+      .grid{ grid-template-columns: 1.05fr .95fr; }
+    }
+
+    .panel{
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.18);
+      padding: 12px;
+    }
+
+    .timer{
+      font-variant-numeric: tabular-nums;
+      font-size: clamp(30px, 4.6vw, 54px);
+      letter-spacing: .04em;
+      text-align:center;
+      padding: 12px 10px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.22);
+    }
+
+    table{
+      width:100%;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+    }
+    th, td{
+      text-align:left;
+      padding: 8px 8px;
+      border-bottom: 1px solid rgba(255,255,255,.10);
+      font-size: 14px;
+    }
+    th{ opacity:.8; font-weight:600; }
+    tr.active td{ background: rgba(255,255,255,.07); }
+
+    .pill{
+      display:inline-block; padding:4px 10px; border-radius:999px;
+      border:1px solid rgba(255,255,255,.16); background: rgba(0,0,0,.18);
+      margin-left:6px;
+      font-size: 12px;
+      opacity:.9;
+    }
+    .note{ margin-top: 10px; font-size: 13px; opacity:.78; line-height:1.35; }
+
+    .chips{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .chip{
+      border-radius: 999px;
+      padding: 8px 10px;
+      border:1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.06);
+      cursor:pointer;
+      font-size: 13px;
+    }
+    .chip:hover{ background: rgba(255,255,255,.10); }
+
+    #tespihatOverlay{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="row">
+      <div>
+        <div class="title">Namaz Vakitleri + Sayaç + Ezan + Tespihat</div>
+        <div class="meta" id="nowStr">—</div>
+      </div>
+      <div class="meta" id="placeStr">—</div>
+    </div>
+
+    <div class="controls">
+      <select id="countrySel" title="Ülke"></select>
+      <select id="citySel" title="Şehir/İl"></select>
+      <select id="districtSel" title="İlçe"></select>
+      <button id="refreshBtn">Vakitleri Yenile</button>
+      <button id="enableBtn">Sesi Aç</button>
+    </div>
+
+    <div class="chips" id="centralChips" style="display:none;"></div>
+
+    <div class="grid">
+      <div class="panel">
+        <div class="meta" style="margin-bottom:8px;">
+          <span class="pill" id="todayStr">Bugün: —</span>
+          <span class="pill" id="iftarPill">İftar: —</span>
+          <span class="pill" id="audioPill">Ses: Kapalı</span>
+        </div>
+
+        <div class="timer" id="nextCountdown">--:--:--</div>
+        <div class="note" id="nextStatus">Bir sonraki vakte kalan süre.</div>
+
+        <div class="timer" id="iftarCountdown" style="margin-top:10px;">--:--:--</div>
+        <div class="note">Akşam (iftar) vaktine kalan süre.</div>
+
+        <div style="margin-top:10px; text-align:center;">
+          <button id="openTespihatBtn" style="display:none;">Tespihatı Aç</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="meta" style="margin-bottom:8px;">Bugünün vakitleri</div>
+        <table>
+          <thead><tr><th>Vakit</th><th>Saat</th></tr></thead>
+          <tbody id="timesTbody">
+            <tr><td colspan="2">Henüz veri yok.</td></tr>
+          </tbody>
+        </table>
+        <div class="note" id="status">Başlatılıyor…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ezan sesi: aynı klasöre ezan.mp3 koy -->
+  <audio id="adhanAudio" preload="auto" src="ezan.mp3"></audio>
+
+  <!-- Tespihat Modal -->
+  <div id="tespihatOverlay">
+    <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+                width:min(760px,92vw); max-height:86vh; overflow:auto;
+                border:1px solid rgba(255,255,255,.14); background:rgba(10,12,18,.92);
+                border-radius:18px; padding:16px; box-shadow:0 18px 60px rgba(0,0,0,.45);">
+      <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+        <div>
+          <div id="tespihatTitle" style="font-size:18px; opacity:.95;">Tespihat</div>
+          <div id="tespihatSubtitle" style="font-size:13px; opacity:.75; margin-top:4px;"></div>
+        </div>
+        <button id="closeTespihatBtn">Kapat</button>
+      </div>
+
+      <div id="tespihatBody" style="margin-top:12px; line-height:1.55; font-size:14px; opacity:.92;"></div>
+
+      <div style="margin-top:14px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+        <button id="dontShowAgainBtn">Bu vakitte tekrar gösterme</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const API_BASE = "https://ezanvakti.emushaf.net";
+  const TZ = "Europe/Istanbul";
+  const LS_KEY = "namazAutoFinalFixedV1";
+  const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+  const elCountry = document.getElementById("countrySel");
+  const elCity = document.getElementById("citySel");
+  const elDistrict = document.getElementById("districtSel");
+  const elRefresh = document.getElementById("refreshBtn");
+
+  const elNowStr = document.getElementById("nowStr");
+  const elPlaceStr = document.getElementById("placeStr");
+  const elTodayStr = document.getElementById("todayStr");
+  const elIftarPill = document.getElementById("iftarPill");
+  const elAudioPill = document.getElementById("audioPill");
+
+  const elNextCountdown = document.getElementById("nextCountdown");
+  const elNextStatus = document.getElementById("nextStatus");
+  const elIftarCountdown = document.getElementById("iftarCountdown");
+
+  const elTimesTbody = document.getElementById("timesTbody");
+  const elStatus = document.getElementById("status");
+  const elCentralChips = document.getElementById("centralChips");
+
+  const elEnableBtn = document.getElementById("enableBtn");
+  const elOpenTespihatBtn = document.getElementById("openTespihatBtn");
+  const adhanAudio = document.getElementById("adhanAudio");
+
+  const elTespihatOverlay = document.getElementById("tespihatOverlay");
+  const elTespihatTitle = document.getElementById("tespihatTitle");
+  const elTespihatSubtitle = document.getElementById("tespihatSubtitle");
+  const elTespihatBody = document.getElementById("tespihatBody");
+  const elCloseTespihatBtn = document.getElementById("closeTespihatBtn");
+  const elDontShowAgainBtn = document.getElementById("dontShowAgainBtn");
+
+  let tickTimer = null;
+
+  const CENTRAL_DISTRICTS = {
+    "ANKARA": ["ALTINDAG", "CANKAYA", "KECIOREN", "MAMAK", "YENIMAHALLE"],
+    "ISTANBUL": ["FATIH", "BEYOGLU", "SISLI", "USKUDAR", "KADIKOY"],
+    "IZMIR": ["KONAK", "BORNOVA", "KARSIYAKA", "BUCA"],
+    "BURSA": ["NILUFER", "OSMANGAZI", "YILDIRIM"],
+    "ANTALYA": ["MURATPASA", "KEPEZ", "KONYAALTI"],
+    "KONYA": ["SELCUKLU", "MERAM", "KARATAY"],
+    "GAZIANTEP": ["SAHINBEY", "SEHITKAMIL"]
+  };
+
+  const state = loadState();
+
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(LS_KEY);
+      if(!raw) return {
+        countryId: "2",
+        cityId: null,
+        districtId: null,
+        defaultCityName: "ANKARA",
+        defaultDistrictName: "KECIOREN",
+        cached: {},
+        todayTimes: null,
+        audioEnabled: false,
+        lastPrayerKey: null,
+        lastAdhanFiredKey: null,
+        pendingTespihatPrayer: null,
+        dontShowForKey: null
+      };
+      const p = JSON.parse(raw);
+      return {
+        countryId: p.countryId ?? "2",
+        cityId: p.cityId ?? null,
+        districtId: p.districtId ?? null,
+        defaultCityName: p.defaultCityName ?? "ANKARA",
+        defaultDistrictName: p.defaultDistrictName ?? "KECIOREN",
+        cached: p.cached ?? {},
+        todayTimes: p.todayTimes ?? null,
+        audioEnabled: !!p.audioEnabled,
+        lastPrayerKey: p.lastPrayerKey ?? null,
+        lastAdhanFiredKey: p.lastAdhanFiredKey ?? null,
+        pendingTespihatPrayer: p.pendingTespihatPrayer ?? null,
+        dontShowForKey: p.dontShowForKey ?? null
+      };
+    } catch {
+      return {
+        countryId:"2", cityId:null, districtId:null, defaultCityName:"ANKARA", defaultDistrictName:"KECIOREN",
+        cached:{}, todayTimes:null, audioEnabled:false, lastPrayerKey:null, lastAdhanFiredKey:null,
+        pendingTespihatPrayer:null, dontShowForKey:null
+      };
+    }
+  }
+  function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+
+  function pad(n){ return String(n).padStart(2,"0"); }
+
+  function fmtNow(){
+    return new Intl.DateTimeFormat("tr-TR", {
+      timeZone: TZ,
+      weekday:"long", year:"numeric", month:"long", day:"2-digit",
+      hour:"2-digit", minute:"2-digit", second:"2-digit"
+    }).format(new Date());
+  }
+
+  function getTodayYMD(){
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year:"numeric", month:"2-digit", day:"2-digit" })
+      .formatToParts(new Date());
+    const y = parts.find(p=>p.type==="year").value;
+    const m = parts.find(p=>p.type==="month").value;
+    const d = parts.find(p=>p.type==="day").value;
+    return `${y}-${m}-${d}`;
+  }
+
+  function wallClockToDate(hhmm, ymd = getTodayYMD()){
+    const [y,m,d] = ymd.split("-").map(Number);
+    const [hh,mm] = hhmm.split(":").map(Number);
+    const approx = new Date(Date.UTC(y, m-1, d, hh, mm, 0));
+    const shown = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour:"2-digit", minute:"2-digit", hour12:false }).format(approx);
+    const [sh, sm] = shown.split(":").map(Number);
+    const deltaMinutes = (sh - hh) * 60 + (sm - mm);
+    approx.setUTCMinutes(approx.getUTCMinutes() - deltaMinutes);
+    return approx;
+  }
+
+  async function fetchJson(url){
+    const res = await fetch(url, { headers: { "Accept":"application/json" }});
+    if(!res.ok) throw new Error(`HTTP ${res.status}: ${url}`);
+    return await res.json();
+  }
+
+  function cacheGet(key){
+    const hit = state.cached[key];
+    if(!hit) return null;
+    if(Date.now() - hit.at > CACHE_TTL_MS) return null;
+    return hit.data;
+  }
+  function cacheSet(key, data){
+    state.cached[key] = { at: Date.now(), data };
+    saveState();
+  }
+
+  async function getCountries(){
+    const key = "countries";
+    const cached = cacheGet(key);
+    if(cached) return cached;
+    const data = await fetchJson(`${API_BASE}/ulkeler`);
+    cacheSet(key, data);
+    return data;
+  }
+  async function getCities(countryId){
+    const key = `cities:${countryId}`;
+    const cached = cacheGet(key);
+    if(cached) return cached;
+    const data = await fetchJson(`${API_BASE}/sehirler/${encodeURIComponent(countryId)}`);
+    cacheSet(key, data);
+    return data;
+  }
+  async function getDistricts(cityId){
+    const key = `districts:${cityId}`;
+    const cached = cacheGet(key);
+    if(cached) return cached;
+    const data = await fetchJson(`${API_BASE}/ilceler/${encodeURIComponent(cityId)}`);
+    cacheSet(key, data);
+    return data;
+  }
+  async function getTimes(districtId){
+    const key = `times:${districtId}`;
+    const hit = state.cached[key];
+    if(hit && (Date.now() - hit.at < 2 * 60 * 60 * 1000)) return hit.data;
+    const data = await fetchJson(`${API_BASE}/vakitler/${encodeURIComponent(districtId)}`);
+    state.cached[key] = { at: Date.now(), data };
+    saveState();
+    return data;
+  }
+
+  function fillSelect(sel, items, {valueKey, labelKey, preferredValue=null}){
+    sel.innerHTML = "";
+    for(const it of items){
+      const opt = document.createElement("option");
+      opt.value = it[valueKey];
+      opt.textContent = it[labelKey];
+      sel.appendChild(opt);
+    }
+    if(preferredValue){
+      const found = Array.from(sel.options).find(o => o.value === preferredValue);
+      if(found) sel.value = preferredValue;
+    }
+  }
+
+  function normalizeTR(s){
+    return String(s ?? "")
+      .toUpperCase()
+      .replaceAll("İ","I")
+      .replaceAll("İ","I")
+      .replaceAll("Ş","S")
+      .replaceAll("Ğ","G")
+      .replaceAll("Ü","U")
+      .replaceAll("Ö","O")
+      .replaceAll("Ç","C")
+      .replaceAll("Â","A")
+      .replaceAll("Î","I")
+      .replaceAll("Û","U");
+  }
+
+  function findByName(items, nameKey, wantedUpper){
+    const w = normalizeTR(wantedUpper);
+    return items.find(x => normalizeTR(x[nameKey]).includes(w));
+  }
+
+  function renderCentralChips(cityName, districts){
+    const cityKey = normalizeTR(cityName);
+    const list = CENTRAL_DISTRICTS[cityKey];
+    elCentralChips.innerHTML = "";
+
+    if(!list || !list.length){
+      elCentralChips.style.display = "none";
+      return;
+    }
+
+    const keyOf = (d) => normalizeTR(d.IlceAdiEn || d.IlceAdi);
+    const districtByKey = new Map(districts.map(d => [keyOf(d), d]));
+
+    const resolved = [];
+    for(const wanted of list){
+      const wKey = normalizeTR(wanted);
+      let found = districtByKey.get(wKey);
+      if(!found){
+        found = districts.find(d => keyOf(d).includes(wKey));
+      }
+      if(found) resolved.push(found);
+    }
+
+    if(!resolved.length){
+      elCentralChips.style.display = "none";
+      return;
+    }
+
+    elCentralChips.style.display = "flex";
+    for(const d of resolved){
+      const b = document.createElement("button");
+      b.className = "chip";
+      b.type = "button";
+      b.textContent = d.IlceAdi;
+      b.addEventListener("click", async () => {
+        elDistrict.value = d.IlceID;
+        state.districtId = d.IlceID;
+        state.todayTimes = null;
+        state.lastPrayerKey = null;
+        state.pendingTespihatPrayer = null;
+        saveState();
+        await refreshTimes();
+      });
+      elCentralChips.appendChild(b);
+    }
+  }
+
+  function renderTimesTable(timesObj){
+    const rows = [
+      ["İmsak", timesObj.Imsak],
+      ["Güneş", timesObj.Gunes],
+      ["Öğle", timesObj.Ogle],
+      ["İkindi", timesObj.Ikindi],
+      ["Akşam", timesObj.Aksam],
+      ["Yatsı", timesObj.Yatsi],
+    ];
+    elTimesTbody.innerHTML = "";
+    for(const [name, val] of rows){
+      const tr = document.createElement("tr");
+      tr.dataset.prayer = name;
+      tr.innerHTML = `<td>${name}</td><td>${String(val).slice(0,5)}</td>`;
+      elTimesTbody.appendChild(tr);
+    }
+  }
+
+  function highlightActive(prayerLabel){
+    const trs = Array.from(elTimesTbody.querySelectorAll("tr"));
+    trs.forEach(tr => tr.classList.remove("active"));
+    const match = trs.find(tr => tr.dataset.prayer === prayerLabel);
+    if(match) match.classList.add("active");
+  }
+
+  function computeCurrentPrayerKey(timesObj){
+    const ymd = getTodayYMD();
+    const now = new Date();
+
+    const prayers = [
+      { key:"Imsak", label:"Sabah",  t: timesObj.Imsak },
+      { key:"Ogle",  label:"Öğle",   t: timesObj.Ogle  },
+      { key:"Ikindi",label:"İkindi", t: timesObj.Ikindi},
+      { key:"Aksam", label:"Akşam",  t: timesObj.Aksam },
+      { key:"Yatsi", label:"Yatsı",  t: timesObj.Yatsi },
+    ];
+
+    let current = null;
+    for(const p of prayers){
+      const dt = wallClockToDate(p.t, ymd);
+      if(now >= dt) current = p;
+    }
+    return current ? `${ymd}|${current.key}` : null;
+  }
+
+  function computeNextSchedule(timesObj){
+    const ymd = getTodayYMD();
+    const schedule = [
+      { key:"Imsak", label:"İmsak",  t: timesObj.Imsak },
+      { key:"Gunes", label:"Güneş",  t: timesObj.Gunes },
+      { key:"Ogle",  label:"Öğle",   t: timesObj.Ogle  },
+      { key:"Ikindi",label:"İkindi", t: timesObj.Ikindi},
+      { key:"Aksam", label:"Akşam",  t: timesObj.Aksam },
+      { key:"Yatsi", label:"Yatsı",  t: timesObj.Yatsi },
+    ];
+    const now = new Date();
+    for(const item of schedule){
+      const dt = wallClockToDate(item.t, ymd);
+      if(dt > now) return { ...item, date: dt, ymd };
+    }
+    const tomorrow = new Date(wallClockToDate(schedule[0].t, ymd).getTime());
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    return { ...schedule[0], date: tomorrow, ymd: "(yarın)" };
+  }
+
+  function setAudioUI(){
+    elAudioPill.textContent = `Ses: ${state.audioEnabled ? "Açık" : "Kapalı"}`;
+    elEnableBtn.textContent = state.audioEnabled ? "Sesi Kapat" : "Sesi Aç";
+  }
+
+  async function playAdhanSafely(){
+    try{
+      adhanAudio.currentTime = 0;
+      await adhanAudio.play();
+    } catch (e) {
+      console.warn("Ezan sesi çalamadı:", e);
+      elStatus.textContent = "Ezan sesi çalamadı. (ezan.mp3 var mı? Tarayıcı izin verdi mi?)";
+    }
+  }
+
+  function prayerKeyToTurkish(prayerKey){
+    return prayerKey === "Imsak" ? "Sabah" :
+           prayerKey === "Ogle"  ? "Öğle"  :
+           prayerKey === "Ikindi"? "İkindi":
+           prayerKey === "Aksam" ? "Akşam" : "Yatsı";
+  }
+
+  function getTespihatHtml(prayerKey){
+    const title = `${prayerKeyToTurkish(prayerKey)} Namazı Tespihatı`;
+    const html =
+      `<ol>
+        <li><b>Âyet’el Kürsî</b> (1)</li>
+        <li><b>Subhânallah</b> (33)</li>
+        <li><b>Elhamdülillah</b> (33)</li>
+        <li><b>Allahu Ekber</b> (33)</li>
+        <li><b>Lâ ilâhe illallâhu vahdehû lâ şerîke leh...</b> (1)</li>
+      </ol>
+      <p style="opacity:.9;margin-top:10px;">
+        İstersen: <b>İhlâs (3)</b>, <b>Felak (1)</b>, <b>Nâs (1)</b> de eklenir (yaygın uygulama).
+      </p>`;
+    return { title, html };
+  }
+
+  function openTespihatModal(prayerKey, firedAtHHMM){
+    const { title, html } = getTespihatHtml(prayerKey);
+    elTespihatTitle.textContent = title;
+    elTespihatSubtitle.textContent = `${getTodayYMD()} • Vakit girişi: ${firedAtHHMM}`;
+    elTespihatBody.innerHTML = html;
+    elTespihatOverlay.style.display = "block";
+  }
+
+  function closeTespihatModal(){
+    elTespihatOverlay.style.display = "none";
+  }
+
+  async function init(){
+    try{
+      setAudioUI();
+      elStatus.textContent = "Ülke/şehir/ilçe listeleri çekiliyor…";
+
+      const countries = await getCountries();
+      const turkey = countries.find(x => x.UlkeAdi === "TURKIYE") || countries.find(x => x.UlkeID === "2");
+      const countryId = state.countryId || (turkey?.UlkeID ?? "2");
+
+      fillSelect(elCountry, countries, { valueKey:"UlkeID", labelKey:"UlkeAdi", preferredValue: countryId });
+      state.countryId = elCountry.value;
+      saveState();
+
+      await loadCitiesAndDistricts();
+      startTickLoop();
+    } catch (e){
+      console.error(e);
+      elStatus.textContent = "Hata: Liste/vakit çekilemedi. file:/// yerine http://localhost ile aç (python http.server).";
+    }
+  }
+
+  async function loadCitiesAndDistricts(){
+    elStatus.textContent = "Şehir listesi yükleniyor…";
+    const cities = await getCities(elCountry.value);
+
+    fillSelect(elCity, cities, { valueKey:"SehirID", labelKey:"SehirAdi" });
+
+    let chosenCityId = state.cityId;
+    if(!chosenCityId){
+      const def = findByName(cities, "SehirAdi", state.defaultCityName);
+      chosenCityId = def?.SehirID ?? elCity.options[0]?.value;
+    }
+    if(chosenCityId) elCity.value = chosenCityId;
+
+    state.cityId = elCity.value;
+    saveState();
+
+    await loadDistricts();
+  }
+
+  async function loadDistricts(){
+    elStatus.textContent = "İlçe listesi yükleniyor…";
+    const districts = await getDistricts(elCity.value);
+
+    fillSelect(elDistrict, districts, { valueKey:"IlceID", labelKey:"IlceAdi" });
+
+    let chosenDistrictId = state.districtId;
+    if(!chosenDistrictId){
+      const def = findByName(districts, "IlceAdi", state.defaultDistrictName);
+      chosenDistrictId = def?.IlceID ?? elDistrict.options[0]?.value;
+    }
+    if(chosenDistrictId) elDistrict.value = chosenDistrictId;
+
+    state.districtId = elDistrict.value;
+    state.todayTimes = null;
+    state.lastPrayerKey = null;
+    state.pendingTespihatPrayer = null;
+    saveState();
+
+    const cityName = elCity.options[elCity.selectedIndex]?.textContent ?? "";
+    renderCentralChips(cityName, districts);
+
+    await refreshTimes();
+  }
+
+  async function refreshTimes(){
+    try{
+      elStatus.textContent = "Bugünün vakitleri çekiliyor…";
+      const districtId = elDistrict.value;
+      const times = await getTimes(districtId);
+      const todayYMD = getTodayYMD();
+
+      const today = times.find(x => (x.MiladiTarihKisa || "").startsWith(todayYMD)) ||
+                    times[0];
+
+      if(!today?.Aksam || !today?.Imsak || !today?.Ogle || !today?.Ikindi || !today?.Yatsi || !today?.Gunes){
+        throw new Error("Vakit alanları bulunamadı.");
+      }
+
+      const timesObj = {
+        Imsak: String(today.Imsak).slice(0,5),
+        Gunes: String(today.Gunes).slice(0,5),
+        Ogle:  String(today.Ogle).slice(0,5),
+        Ikindi:String(today.Ikindi).slice(0,5),
+        Aksam: String(today.Aksam).slice(0,5),
+        Yatsi: String(today.Yatsi).slice(0,5),
+      };
+
+      state.todayTimes = timesObj;
+      state.lastPrayerKey = computeCurrentPrayerKey(timesObj);
+      state.pendingTespihatPrayer = null;
+      saveState();
+
+      const cityName = elCity.options[elCity.selectedIndex]?.textContent ?? "";
+      const districtName = elDistrict.options[elDistrict.selectedIndex]?.textContent ?? "";
+
+      elPlaceStr.textContent = `${cityName} / ${districtName}`;
+      elTodayStr.textContent = `Bugün: ${todayYMD}`;
+      elIftarPill.textContent = `İftar (Akşam): ${timesObj.Aksam}`;
+
+      renderTimesTable(timesObj);
+      elStatus.textContent = `Tamam. Bugün (${todayYMD}) vakitleri alındı.`;
+
+      elOpenTespihatBtn.style.display = "none";
+
+    } catch (e){
+      console.error(e);
+      elStatus.textContent = "Hata: Vakitler çekilemedi. 'Vakitleri Yenile' ile tekrar dene.";
+    }
+  }
+
+  function startTickLoop(){
+    if(tickTimer) clearInterval(tickTimer);
+
+    const tick = async () => {
+      elNowStr.textContent = `Şu an: ${fmtNow()} (TZ: ${TZ})`;
+
+      const t = state.todayTimes;
+      if(!t){
+        elNextCountdown.textContent = "--:--:--";
+        elIftarCountdown.textContent = "--:--:--";
+        return;
+      }
+
+      // Next countdown
+      const next = computeNextSchedule(t);
+      const diffNext = next.date - new Date();
+      const secNext = Math.max(0, Math.floor(diffNext / 1000));
+      elNextCountdown.textContent = `${pad(Math.floor(secNext/3600))}:${pad(Math.floor((secNext%3600)/60))}:${pad(secNext%60)}`;
+      elNextStatus.textContent = `Sonraki: ${next.label} (${next.t})`;
+      highlightActive(next.label);
+
+      // Iftar countdown (Akşam)
+      const iftarDate = wallClockToDate(t.Aksam);
+      let diffIftar = iftarDate - new Date();
+      if(diffIftar < 0) diffIftar = 0;
+      const secI = Math.max(0, Math.floor(diffIftar / 1000));
+      elIftarCountdown.textContent = `${pad(Math.floor(secI/3600))}:${pad(Math.floor((secI%3600)/60))}:${pad(secI%60)}`;
+
+      // Prayer change detect (5 vakit)
+      const currentKey = computeCurrentPrayerKey(t);
+      if(currentKey && currentKey !== state.lastPrayerKey){
+        state.lastPrayerKey = currentKey;
+
+        const [ymd, prayerKey] = currentKey.split("|");
+        const timeHHMM = t[prayerKey] || "";
+        const suppressKey = `${ymd}|${prayerKey}`;
+        const suppressed = (state.dontShowForKey === suppressKey);
+
+        // Adhan
+        if(state.audioEnabled && state.lastAdhanFiredKey !== suppressKey){
+          state.lastAdhanFiredKey = suppressKey;
+          saveState();
+          await playAdhanSafely();
+        }
+
+        // Tespihat button
+        if(!suppressed){
+          state.pendingTespihatPrayer = prayerKey;
+          saveState();
+          elOpenTespihatBtn.style.display = "inline-block";
+          elOpenTespihatBtn.textContent = `${prayerKeyToTurkish(prayerKey)} Tespihatını Aç`;
+          elStatus.textContent = `Vakit girdi: ${prayerKeyToTurkish(prayerKey)} (${timeHHMM}).`;
+        }
+      } else {
+        if(!state.pendingTespihatPrayer){
+          elOpenTespihatBtn.style.display = "none";
+        }
+      }
+    };
+
+    tick();
+    tickTimer = setInterval(tick, 1000);
+  }
+
+  // Events
+  elCountry.addEventListener("change", async () => {
+    state.countryId = elCountry.value;
+    state.cityId = null;
+    state.districtId = null;
+    state.todayTimes = null;
+    state.lastPrayerKey = null;
+    state.pendingTespihatPrayer = null;
+    saveState();
+    await loadCitiesAndDistricts();
+  });
+
+  elCity.addEventListener("change", async () => {
+    state.cityId = elCity.value;
+    state.districtId = null;
+    state.todayTimes = null;
+    state.lastPrayerKey = null;
+    state.pendingTespihatPrayer = null;
+    saveState();
+    await loadDistricts();
+  });
+
+  elDistrict.addEventListener("change", async () => {
+    state.districtId = elDistrict.value;
+    state.todayTimes = null;
+    state.lastPrayerKey = null;
+    state.pendingTespihatPrayer = null;
+    saveState();
+    await refreshTimes();
+  });
+
+  elRefresh.addEventListener("click", async () => {
+    await refreshTimes();
+  });
+
+  elEnableBtn.addEventListener("click", async () => {
+    state.audioEnabled = !state.audioEnabled;
+    saveState();
+    setAudioUI();
+
+    if(state.audioEnabled){
+      // unlock denemesi
+      try{
+        adhanAudio.currentTime = 0;
+        await adhanAudio.play();
+        adhanAudio.pause();
+        adhanAudio.currentTime = 0;
+      } catch {}
+      elStatus.textContent = "Ses açıldı. Vakit girince ezan çalacak.";
+    } else {
+      try{ adhanAudio.pause(); } catch {}
+      elStatus.textContent = "Ses kapatıldı.";
+    }
+  });
+
+  elOpenTespihatBtn.addEventListener("click", () => {
+    const t = state.todayTimes;
+    const p = state.pendingTespihatPrayer;
+    if(!t || !p) return;
+
+    const timeHHMM = t[p] || "";
+    openTespihatModal(p, timeHHMM);
+
+    state.pendingTespihatPrayer = null;
+    saveState();
+    elOpenTespihatBtn.style.display = "none";
+  });
+
+  elCloseTespihatBtn.addEventListener("click", closeTespihatModal);
+  elTespihatOverlay.addEventListener("click", (e) => {
+    if(e.target === elTespihatOverlay) closeTespihatModal();
+  });
+
+  elDontShowAgainBtn.addEventListener("click", () => {
+    const t = state.todayTimes;
+    const currentKey = t ? computeCurrentPrayerKey(t) : null;
+    if(currentKey){
+      state.dontShowForKey = currentKey;
+      saveState();
+    }
+    closeTespihatModal();
+    elStatus.textContent = "Tamam. Bu vakitte tespihat uyarısını tekrar göstermeyeceğim.";
+  });
+
+  setAudioUI();
+  init();
+})();
+</script>
+</body>
+</html>
